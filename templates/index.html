@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goodwood Screening System</title>
+<style>
+  :root{
+    --ink:#1b2a24; --muted:#5d6f68; --line:#dde5e1; --bg:#f4f6f5;
+    --brand:#0e5c46; --brand-soft:#e3efea;
+    --ok:#0e7a4b; --ok-bg:#e6f4ec; --fail:#b3362a; --fail-bg:#fbeae8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.6 "Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{background:var(--brand);color:#fff;padding:18px 28px}
+  header h1{margin:0;font-size:19px;font-weight:600;letter-spacing:.2px}
+  header p{margin:2px 0 0;font-size:13px;opacity:.85}
+  main{max-width:960px;margin:28px auto 60px;padding:0 20px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;
+        padding:22px 24px;margin-bottom:18px}
+  h2{font-size:16px;margin:0 0 12px}
+  .flash{background:var(--fail-bg);color:var(--fail);border:1px solid #efc3bd;
+         border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px}
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:34px;text-align:center;
+        transition:.15s;cursor:pointer}
+  .drop.drag{border-color:var(--brand);background:var(--brand-soft)}
+  .drop p{margin:6px 0;color:var(--muted)}
+  .drop .big{font-size:15px;color:var(--ink);font-weight:600}
+  input[type=file]{display:none}
+  .btn{display:inline-block;background:var(--brand);color:#fff;border:none;cursor:pointer;
+       padding:11px 26px;border-radius:8px;font-size:15px;font-weight:600;margin-top:16px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .file-chip{display:none;margin-top:14px;font-size:14px;color:var(--brand);font-weight:600}
+  .verdict{display:flex;align-items:center;justify-content:space-between;gap:14px;
+           border-radius:10px;padding:18px 22px;margin-bottom:18px;border:1px solid}
+  .verdict.pass{background:var(--ok-bg);border-color:#bfe3cd;color:var(--ok)}
+  .verdict.fail{background:var(--fail-bg);border-color:#efc3bd;color:var(--fail)}
+  .verdict .v-title{font-size:18px;font-weight:700}
+  .verdict .v-sub{font-size:13px;color:var(--muted);font-weight:400}
+  .score{font-size:26px;font-weight:800;white-space:nowrap}
+  .check{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden;background:#fff}
+  .check-head{display:flex;gap:12px;align-items:flex-start;padding:14px 18px}
+  .badge{flex:0 0 auto;font-size:12px;font-weight:700;border-radius:20px;padding:3px 12px;margin-top:2px}
+  .badge.ok{background:var(--ok-bg);color:var(--ok)}
+  .badge.no{background:var(--fail-bg);color:var(--fail)}
+  .check-name{font-weight:600}
+  .check-detail{color:var(--muted);font-size:14px;margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:8px 12px;border-top:1px solid var(--line);text-align:left;vertical-align:top}
+  th{background:#fafbfa;color:var(--muted);font-weight:600}
+  .tag{font-size:12px;font-weight:600;border-radius:14px;padding:2px 10px;white-space:nowrap}
+  .tag.intl{background:var(--ok-bg);color:var(--ok)}
+  .tag.other{background:#eef0ef;color:var(--muted)}
+  .found{color:var(--ok);font-weight:600}
+  .missing{color:var(--fail);font-weight:600}
+  .note{font-size:13px;color:var(--muted);background:#fafbfa;border-top:1px solid var(--line);
+        padding:10px 18px}
+  details summary{cursor:pointer;padding:10px 18px;border-top:1px solid var(--line);
+                  color:var(--brand);font-weight:600;font-size:14px}
+  .again{margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Goodwood Screening System</h1>
+  <p>Pemeriksaan awal struktur manuskrip — Goodwood Publishing &nbsp;·&nbsp; v{{ version }}</p>
+</header>
+<main>
+
+  {% with messages = get_flashed_messages() %}
+    {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
+  {% endwith %}
+
+  {% if not result %}
+  <div class="card">
+    <h2>Upload Manuskrip</h2>
+    <form method="POST" action="{{ url_for('screen') }}" enctype="multipart/form-data" id="form">
+      <label class="drop" id="drop" for="file">
+        <p class="big">Klik atau tarik file Word ke sini</p>
+        <p>Format: .docx &nbsp;·&nbsp; Maks. 50 MB</p>
+        <input type="file" id="file" name="manuscript" accept=".docx">
+        <div class="file-chip" id="chip"></div>
+      </label>
+      <button class="btn" id="btn" type="submit" disabled>Jalankan Screening</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Kriteria yang Diperiksa</h2>
+    <ol style="margin:0;padding-left:20px;color:var(--muted)">
+      <li>Judul maksimal 15 kata (termasuk kata sambung)</li>
+      <li>Keywords 3–5 buah, setiap keyword menggunakan format Capital Each Word (Title Case)</li>
+      <li>Abstrak 180–250 kata</li>
+      <li>5 bab utama: Introduction · Literature Review &amp; Hypothesis Development · Research Methodology · Result and Discussion · Conclusion</li>
+      <li>Bab khusus: Acknowledgement dan Author Contribution</li>
+      <li>Referensi minimal 30, dengan minimal 80% jurnal internasional, dan DOI tervalidasi</li>
+      <li>Setiap referensi diperiksa satu per satu terhadap format APA 6th Edition (penulis, tahun,
+        judul, nama jurnal &amp; italic, volume/issue, halaman, DOI) — seluruh kekurangan
+        ditampilkan beserta rekomendasi perbaikannya</li>
+      <li>Jumlah kata artikel (Abstract s.d. References) 5.000–10.000 kata</li>
+      <li>Struktur penomoran Section/Subsection/Sub-subsection sesuai template</li>
+      <li>Setiap Table dan Figure harus dirujuk dengan kalimat pengantar di badan teks
+        pembahasan (mis. "As shown in Table 2, ...")</li>
+      <li>Bagian Methodology/Research Methodology harus memiliki minimal satu sitasi pendukung</li>
+      <li>Kesesuaian dua arah antara sitasi di badan teks dan entri daftar pustaka</li>
+      <li>Minimal 5 referensi berasal dari jurnal terbitan Goodwood Publishing</li>
+    </ol>
+  </div>
+
+  {% else %}
+  <div class="verdict {{ 'pass' if result.passed == result.total else 'fail' }}">
+    <div>
+      <div class="v-title">{{ result.verdict }}</div>
+      <div class="v-sub">File: {{ filename }}{% if result.title %} &nbsp;·&nbsp; “{{ result.title }}”{% endif %}</div>
+    </div>
+    <div class="score">{{ result.passed }}/{{ result.total }}</div>
+  </div>
+
+  {% if download %}
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <strong>File Word hasil screening siap diunduh</strong>
+      <div style="color:var(--muted);font-size:13.5px">
+        Salinan manuskrip dengan {{ n_comments }} comment di lokasi temuan
+        (author comment: "Goodwood Screening") — siap dikirim kembali ke penulis.
+      </div>
+    </div>
+    <a class="btn" style="margin:0;text-decoration:none" href="{{ url_for('download', fname=download) }}">⬇ Unduh Word + Comment</a>
+  </div>
+  {% endif %}
+
+  {% for c in result.checks %}
+  <div class="check">
+    <div class="check-head">
+      <span class="badge {{ 'ok' if c.passed else 'no' }}">{{ 'LOLOS' if c.passed else 'GAGAL' }}</span>
+      <div>
+        <div class="check-name">{{ c.name }}</div>
+        {% if c.detail != 'chapters' %}<div class="check-detail">{{ c.detail }}</div>{% endif %}
+      </div>
+    </div>
+
+    {% if c.chapters %}
+    <table>
+      <tr><th style="width:55%">Bab yang Disyaratkan</th><th>Status Terdeteksi</th></tr>
+      {% for ch in c.chapters %}
+      <tr>
+        <td>{{ ch.label }}</td>
+        <td>{% if ch.found %}<span class="found">✓ ditemukan</span>
+              <span style="color:var(--muted)">— “{{ ch.found }}”</span>
+            {% else %}<span class="missing">✗ tidak ditemukan</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if c.references %}
+    <details>
+      <summary>Lihat klasifikasi {{ c.references|length }} referensi</summary>
+      <table>
+        <tr><th style="width:36px">No</th><th>Referensi</th><th style="width:170px">Klasifikasi</th><th style="width:90px">DOI</th></tr>
+        {% for r in c.references %}
+        <tr>
+          <td>{{ r.no }}</td>
+          <td>{{ r.text }}</td>
+          <td><span class="tag {{ 'intl' if r.type == 'Jurnal Internasional' else 'other' }}">{{ r.type }}</span></td>
+          <td>
+            {% if r.needs_doi %}
+              {% if r.has_doi %}<span class="found">✓ ada</span>{% else %}<span class="missing">✗ hilang</span>{% endif %}
+            {% else %}<span style="color:var(--muted)">–</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      <div class="note">Klasifikasi bersifat estimasi otomatis berdasarkan pola teks (nama jurnal,
+        volume/issue, DOI, kata berbahasa Indonesia). Untuk keputusan akhir, mohon diverifikasi oleh editor.</div>
+    </details>
+    {% endif %}
+
+    {% if c.doi_missing is defined and c.doi_missing %}
+    <table>
+      <tr><th style="width:36px">No</th><th>Status DOI</th></tr>
+      {% for r in c.doi_missing %}
+      <tr><td>{{ r.no }}</td><td><span class="missing">✗ DOI belum ditemukan</span> — {{ r.text[:110] }}{% if r.text|length > 110 %}…{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if c.ref_apa_rows is defined and c.ref_apa_rows %}
+    <details>
+      <summary>Lihat rincian format APA untuk {{ c.ref_apa_rows|length }} referensi</summary>
+      <table>
+        <tr>
+          <th style="width:36px">No</th><th style="width:34%">Referensi</th>
+          <th style="width:100px">Status</th><th>Kekurangan &amp; Rekomendasi Perbaikan</th>
+        </tr>
+        {% for r in c.ref_apa_rows %}
+        <tr>
+          <td>{{ r.no }}</td>
+          <td>{{ r.text }}</td>
+          <td>
+            {% if r.apa_ok %}<span class="found">✓ Sesuai</span>
+            {% else %}<span class="missing">✗ {{ r.issues|length }} kekurangan</span>{% endif %}
+          </td>
+          <td>
+            {% if r.issues %}
+            <ul style="margin:0;padding-left:18px">
+              {% for iss in r.issues %}<li style="margin-bottom:4px">{{ iss.message }}</li>{% endfor %}
+            </ul>
+            {% else %}<span style="color:var(--muted)">Tidak ada kekurangan terdeteksi.</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      <div class="note">Validasi bersifat estimasi otomatis berdasarkan pola teks &amp; format Word
+        (mis. italic pada nama jurnal). Rincian yang sama juga disisipkan sebagai comment Word
+        tepat pada referensi terkait di dalam dokumen hasil screening. Untuk keputusan akhir,
+        mohon diverifikasi oleh editor.</div>
+    </details>
+    {% endif %}
+
+    {% if c.uncited_refs is defined and (c.uncited_refs or c.orphan_citations) %}
+    <details>
+      <summary>Lihat rincian kesesuaian sitasi &amp; daftar pustaka</summary>
+      {% if c.uncited_refs %}
+      <table>
+        <tr><th style="width:36px">No</th><th>Referensi Tidak Pernah Disitasi</th></tr>
+        {% for r in c.uncited_refs %}
+        <tr><td>{{ r.no }}</td><td><span class="missing">✗</span> {{ r.text[:140] }}{% if r.text|length > 140 %}…{% endif %}</td></tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+      {% if c.orphan_citations %}
+      <table>
+        <tr><th>Sitasi Tanpa Pasangan di Daftar Pustaka</th></tr>
+        {% for o in c.orphan_citations %}
+        <tr><td><span class="missing">✗</span> {{ o.surname|capitalize }} ({{ o.year }})</td></tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+      <div class="note">Pemeriksaan bersifat estimasi otomatis berdasarkan pola sitasi APA (dalam
+        kurung maupun naratif). Comment Word ditempatkan tepat pada referensi/sitasi terkait.
+        Mohon verifikasi manual untuk keputusan akhir.</div>
+    </details>
+    {% endif %}
+
+    {% if c.goodwood_matches is defined %}
+    <details>
+      <summary>Lihat {{ c.goodwood_count }} referensi jurnal Goodwood yang terdeteksi</summary>
+      {% if c.goodwood_matches %}
+      <table>
+        <tr><th style="width:36px">No</th><th>Referensi</th><th style="width:260px">Jurnal Goodwood Terdeteksi</th></tr>
+        {% for m in c.goodwood_matches %}
+        <tr>
+          <td>{{ m.no }}</td>
+          <td>{{ m.text[:140] }}{% if m.text|length > 140 %}…{% endif %}</td>
+          <td><span class="tag intl">{{ m.matched_journal }}</span></td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <div class="note">Belum ada referensi yang terdeteksi berasal dari jurnal terbitan Goodwood Publishing.</div>
+      {% endif %}
+      <div class="note">Pencocokan memakai daftar resmi jurnal Goodwood Publishing (nama lengkap
+        maupun singkatan), dengan toleransi variasi kecil penulisan. Mohon verifikasi manual jika ragu.</div>
+    </details>
+    {% endif %}
+
+    {% if c.hierarchy_issues is defined and c.hierarchy_issues %}
+    <table>
+      <tr><th style="width:35%">Heading Bermasalah</th><th>Catatan</th></tr>
+      {% for h in c.hierarchy_issues %}
+      <tr>
+        <td><span class="missing">{{ h.current }}</span></td>
+        <td>{{ h.message }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div class="note">Sistem tidak menyarankan nomor heading spesifik (format penomoran berbeda
+      tiap template jurnal). Comment Word pada heading terkait meminta penulis menyesuaikan
+      sendiri hierarki Section/Subsection/Sub-subsection sesuai template yang dipakai.</div>
+    {% endif %}
+
+    {% if c.crossref_issues is defined and c.crossref_issues %}
+    <table>
+      <tr><th style="width:120px">Elemen</th><th style="width:30%">Caption</th><th>Catatan</th></tr>
+      {% for x in c.crossref_issues %}
+      <tr>
+        <td><span class="missing">{{ x.type }} {{ x.number }}</span></td>
+        <td>{{ x.caption }}</td>
+        <td>Belum dirujuk dengan kalimat pengantar di badan teks pembahasan.</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div class="note">Sistem mencari kemunculan "Table N"/"Figure N" (atau "Tabel N"/"Gambar N")
+      di luar caption-nya sendiri. Comment Word ditempatkan tepat pada caption tabel/gambar
+      yang belum dirujuk tersebut.</div>
+    {% endif %}
+
+    {% if c.word_count is defined and c.word_count %}
+    <div class="note">Dihitung dari bagian Abstract hingga akhir References.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <a class="btn again" href="{{ url_for('index') }}" style="text-decoration:none">Screening File Lain</a>
+  {% endif %}
+</main>
+
+<script>
+const drop = document.getElementById('drop');
+if (drop){
+  const file = document.getElementById('file'),
+        chip = document.getElementById('chip'),
+        btn  = document.getElementById('btn');
+  const show = () => {
+    if (file.files.length){
+      chip.textContent = '📄 ' + file.files[0].name;
+      chip.style.display = 'block';
+      btn.disabled = false;
+    }
+  };
+  file.addEventListener('change', show);
+  ['dragover','dragenter'].forEach(e => drop.addEventListener(e, ev => {
+    ev.preventDefault(); drop.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => {
+    ev.preventDefault(); drop.classList.remove('drag');
+  }));
+  drop.addEventListener('drop', ev => {
+    if (ev.dataTransfer.files.length){ file.files = ev.dataTransfer.files; show(); }
+  });
+}
+</script>
+</body>
+</html>
