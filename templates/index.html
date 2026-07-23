@@ -16,6 +16,17 @@
   header{background:var(--brand);color:#fff;padding:18px 28px}
   header h1{margin:0;font-size:19px;font-weight:600;letter-spacing:.2px}
   header p{margin:2px 0 0;font-size:13px;opacity:.85}
+  .header-inner{max-width:1160px;margin:0 auto;display:flex;align-items:center;
+                justify-content:space-between;gap:18px}
+  .header-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .header-user{font-size:13px;opacity:.9;margin-right:4px}
+  .nav-link{display:inline-block;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.45);
+            border-radius:7px;padding:7px 12px;font-size:13px;font-weight:600}
+  .nav-link:hover{background:rgba(255,255,255,.12)}
+  .nav-link.logout{background:#fff;color:var(--brand);border-color:#fff}
+  @media (max-width:700px){
+    .header-inner{align-items:flex-start;flex-direction:column}
+  }
   main{max-width:960px;margin:28px auto 60px;padding:0 20px}
   .card{background:#fff;border:1px solid var(--line);border-radius:10px;
         padding:22px 24px;margin-bottom:18px}
@@ -63,8 +74,18 @@
 </head>
 <body>
 <header>
-  <h1>Goodwood Screening System</h1>
-  <p>Pemeriksaan awal struktur manuskrip — Goodwood Publishing &nbsp;·&nbsp; v{{ version }}</p>
+  <div class="header-inner">
+    <div>
+      <h1>Goodwood Screening System</h1>
+      <p>Pemeriksaan awal struktur manuskrip — Goodwood Publishing &nbsp;·&nbsp; v{{ version }}</p>
+    </div>
+    <nav class="header-nav">
+      <span class="header-user">Halo, {{ session.get('username', 'User') }}</span>
+      <a class="nav-link" href="{{ url_for('index') }}">Screening</a>
+      <a class="nav-link" href="{{ url_for('history') }}">Riwayat</a>
+      <a class="nav-link logout" href="{{ url_for('logout') }}">Logout</a>
+    </nav>
+  </div>
 </header>
 <main>
 

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login — Goodwood Screening System</title>
+  <style>
+    :root{
+      --ink:#1b2a24; --muted:#5d6f68; --line:#dde5e1; --bg:#f4f6f5;
+      --brand:#0e5c46; --brand-soft:#e3efea; --fail:#b3362a; --fail-bg:#fbeae8;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;
+         background:linear-gradient(145deg,#eef4f1,#dbe9e3);
+         color:var(--ink);font:15px/1.6 "Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+    .card{width:min(430px,100%);background:#fff;border:1px solid var(--line);
+          border-radius:14px;padding:34px;box-shadow:0 20px 60px rgba(14,92,70,.14)}
+    .brand-mark{width:54px;height:54px;border-radius:14px;background:var(--brand);
+                display:grid;place-items:center;color:#fff;font-size:25px;font-weight:800;margin-bottom:20px}
+    h1{margin:0;font-size:24px}
+    .sub{margin:5px 0 24px;color:var(--muted)}
+    label{display:block;font-size:13px;font-weight:700;margin:15px 0 6px}
+    input{width:100%;border:1px solid var(--line);border-radius:8px;padding:12px 13px;
+          font:inherit;outline:none}
+    input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+    button{width:100%;margin-top:22px;background:var(--brand);color:#fff;border:0;border-radius:8px;
+           padding:12px 16px;font:inherit;font-weight:700;cursor:pointer}
+    button:hover{filter:brightness(.94)}
+    .flash{background:var(--fail-bg);color:var(--fail);border:1px solid #efc3bd;
+           border-radius:8px;padding:10px 12px;margin:0 0 16px}
+    .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand-mark">G</div>
+    <h1>Goodwood Screening</h1>
+    <p class="sub">Login untuk mengakses sistem screening internal.</p>
+
+    {% with messages = get_flashed_messages() %}
+      {% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+      <button type="submit">Login</button>
+    </form>
+    <div class="foot">Goodwood Publishing · Internal use only · v{{ version }}</div>
+  </main>
+</body>
+</html>

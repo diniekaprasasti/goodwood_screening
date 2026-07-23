@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Riwayat Screening — Goodwood Screening System</title>
+  <style>
+    :root{
+      --ink:#1b2a24; --muted:#5d6f68; --line:#dde5e1; --bg:#f4f6f5;
+      --brand:#0e5c46; --brand-soft:#e3efea; --fail:#b3362a; --fail-bg:#fbeae8;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);
+         font:15px/1.55 "Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+    header{background:var(--brand);color:#fff;padding:18px 28px}
+    .header-inner{max-width:1180px;margin:auto;display:flex;align-items:center;
+                  justify-content:space-between;gap:16px}
+    h1{font-size:19px;margin:0}
+    header p{margin:2px 0 0;font-size:13px;opacity:.85}
+    nav{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+    .user{font-size:13px;opacity:.9}
+    .nav-link{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.45);
+              border-radius:7px;padding:7px 12px;font-size:13px;font-weight:600}
+    .logout{background:#fff;color:var(--brand);border-color:#fff}
+    main{max-width:1180px;margin:28px auto 60px;padding:0 20px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+    .card-head{display:flex;justify-content:space-between;align-items:center;gap:14px;
+               padding:20px 22px;border-bottom:1px solid var(--line)}
+    .card-head h2{font-size:17px;margin:0}
+    .count{background:var(--brand-soft);color:var(--brand);font-weight:700;
+           padding:5px 11px;border-radius:20px;font-size:13px}
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:940px;font-size:13.5px}
+    th,td{padding:11px 13px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{background:#fafbfa;color:var(--muted);font-weight:700}
+    tr:last-child td{border-bottom:0}
+    .file{font-weight:650}
+    .muted{color:var(--muted)}
+    .score{white-space:nowrap;font-weight:700}
+    .download{display:inline-block;background:var(--brand);color:#fff;text-decoration:none;
+              padding:7px 11px;border-radius:7px;font-size:12.5px;font-weight:700;white-space:nowrap}
+    .empty{text-align:center;padding:55px 20px;color:var(--muted)}
+    .flash{background:var(--fail-bg);color:var(--fail);border:1px solid #efc3bd;
+           border-radius:8px;padding:10px 14px;margin-bottom:16px}
+    @media(max-width:700px){.header-inner{flex-direction:column;align-items:flex-start}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div>
+      <h1>Goodwood Screening System</h1>
+      <p>Riwayat hasil screening · v{{ version }}</p>
+    </div>
+    <nav>
+      <span class="user">Halo, {{ session.get('username', 'User') }}</span>
+      <a class="nav-link" href="{{ url_for('index') }}">Screening Baru</a>
+      <a class="nav-link logout" href="{{ url_for('logout') }}">Logout</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  {% with messages = get_flashed_messages() %}
+    {% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}
+  {% endwith %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Riwayat Screening</h2>
+      <span class="count">{{ records|length }} dokumen</span>
+    </div>
+
+    {% if records %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Pengguna</th>
+            <th>Nama file asli</th>
+            <th>Nama file tersimpan</th>
+            <th>Hasil</th>
+            <th>Comment</th>
+            <th>Unduh</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in records %}
+          <tr>
+            <td>{{ record.created_at }}</td>
+            <td>{{ record.username }}</td>
+            <td class="file">{{ record.original_filename }}</td>
+            <td class="muted">{{ record.saved_filename }}</td>
+            <td>
+              <div>{{ record.verdict or '-' }}</div>
+              <div class="score">{{ record.passed }}/{{ record.total }}</div>
+            </td>
+            <td>{{ record.comments }}</td>
+            <td><a class="download" href="{{ url_for('download', fname=record.saved_filename) }}">Unduh</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="empty">Belum ada dokumen yang discreening.</div>
+    {% endif %}
+  </section>
+</main>
+</body>
+</html>
