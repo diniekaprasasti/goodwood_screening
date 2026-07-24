@@ -900,6 +900,10 @@ def validate_reference_format(ref, ref_type, paragraph=None):
             "message": ("Tahun publikasi tidak ditemukan. APA 6th Edition mensyaratkan tahun "
                         "publikasi ditulis dalam tanda kurung tepat setelah nama penulis, contoh: "
                         "Smith, J. A. (2021). Mohon tambahkan tahun publikasi pada referensi ini."),
+            "message_en": ("Publication year not found. APA 6th Edition requires the publication "
+                           "year to appear in parentheses immediately after the author name, for "
+                           "example: Smith, J. A. (2021). Please add the publication year to this "
+                           "reference."),
         })
 
     # 2) Format nama penulis
@@ -923,6 +927,10 @@ def validate_reference_format(ref, ref_type, paragraph=None):
                             "(seharusnya: NamaBelakang, Inisial. — misal 'Smith, J. A.'). Mohon "
                             "periksa urutan nama, tanda koma, dan penggunaan inisial pada seluruh "
                             "penulis referensi ini.").format(preview),
+                "message_en": ('The author name ("{}") does not appear to follow APA 6th Edition '
+                               "format (it should be: Surname, Initials. — for example "
+                               "'Smith, J. A.'). Please check the name order, commas, and use of "
+                               "initials for every author in this reference.").format(preview),
             })
     else:
         issues.append({
@@ -930,6 +938,9 @@ def validate_reference_format(ref, ref_type, paragraph=None):
             "message": ("Format nama penulis belum dapat diverifikasi otomatis karena tahun "
                         "publikasi tidak terdeteksi pada referensi ini. Mohon periksa manual apakah "
                         "nama penulis sudah mengikuti format APA (NamaBelakang, Inisial.)."),
+            "message_en": ("The author name format could not be verified automatically because no "
+                           "publication year was detected in this reference. Please check manually "
+                           "whether the author name follows APA format (Surname, Initials.)."),
         })
 
     # 3) Judul artikel & nama jurnal (segmen setelah tahun/penanda tanggal)
@@ -972,6 +983,11 @@ def validate_reference_format(ref, ref_type, paragraph=None):
                                 "kata (Title Case), padahal APA 6th Edition mensyaratkan sentence "
                                 "case untuk judul artikel (hanya huruf pertama kalimat/sub-judul dan "
                                 "nama diri yang kapital). Mohon sesuaikan kapitalisasi judul.").format(preview),
+                    "message_en": ('The article title ("{}") appears to be written in Title Case, '
+                                   "whereas APA 6th Edition requires sentence case for article "
+                                   "titles (only the first letter of the title and subtitle, plus "
+                                   "proper nouns, are capitalised). Please adjust the "
+                                   "capitalisation of the title.").format(preview),
                 })
     elif year_m and is_article:
         issues.append({
@@ -979,6 +995,9 @@ def validate_reference_format(ref, ref_type, paragraph=None):
             "message": ("Judul artikel tidak terdeteksi setelah tahun publikasi. Mohon pastikan "
                         "referensi mengikuti urutan format APA: Penulis. (Tahun). Judul artikel. "
                         "Nama Jurnal, Volume(Issue), Halaman."),
+            "message_en": ("No article title was detected after the publication year. Please make "
+                           "sure the reference follows the APA order: Author. (Year). Article "
+                           "title. Journal Name, Volume(Issue), Pages."),
         })
 
     # 4)–6) Nama jurnal (italic), volume/issue, dan halaman — khusus artikel jurnal
@@ -990,6 +1009,10 @@ def validate_reference_format(ref, ref_type, paragraph=None):
                             "meskipun referensi terklasifikasi sebagai artikel jurnal. Mohon "
                             "pastikan nama jurnal dicantumkan tepat sebelum volume(issue) dan "
                             "halaman, sesuai format APA."),
+                "message_en": ("The journal name could not be identified from this reference, even "
+                               "though the reference was classified as a journal article. Please "
+                               "make sure the journal name appears immediately before the "
+                               "volume(issue) and page numbers, following APA format."),
             })
         else:
             italic = _is_span_italic(paragraph, ref, *journal_span) if journal_span else None
@@ -1000,6 +1023,10 @@ def validate_reference_format(ref, ref_type, paragraph=None):
                                 "(italic). APA 6th Edition mewajibkan nama jurnal beserta nomor "
                                 "volume ditulis italic. Mohon ubah format teks tersebut menjadi "
                                 "italic.").format(journal_name),
+                    "message_en": ('The journal name ("{}") is not italicised. APA 6th Edition '
+                                   "requires the journal name and the volume number to be set in "
+                                   "italics. Please change the formatting of that text to "
+                                   "italic.").format(journal_name),
                 })
 
         vol_m = VOL_ISSUE_RE.search(ref)
@@ -1009,6 +1036,9 @@ def validate_reference_format(ref, ref_type, paragraph=None):
                 "message": ("Nomor volume dan/atau issue belum dicantumkan. Format APA untuk "
                             "artikel jurnal mensyaratkan penomoran seperti '12(3)' setelah nama "
                             "jurnal. Mohon tambahkan nomor volume(issue) pada referensi ini."),
+                "message_en": ("The volume and/or issue number is missing. APA format for journal "
+                               "articles requires numbering such as '12(3)' after the journal "
+                               "name. Please add the volume(issue) number to this reference."),
             })
 
         if not _pages_present(ref):
@@ -1017,6 +1047,9 @@ def validate_reference_format(ref, ref_type, paragraph=None):
                 "message": ("Nomor halaman artikel tidak ditemukan. Mohon tambahkan halaman "
                             "artikel — boleh berupa rentang halaman (contoh: 297-307) atau "
                             "nomor halaman/artikel tunggal (contoh: 2498) — sesuai format APA."),
+                "message_en": ("No page numbers were found for the article. Please add the article "
+                               "pages, either as a page range (for example 297-307) or as a single "
+                               "page/article number (for example 2498), following APA format."),
             })
 
     # 7) DOI — kewajiban, keberadaan URL sebagai pengganti, dan validitas format
@@ -1031,6 +1064,12 @@ def validate_reference_format(ref, ref_type, paragraph=None):
                                 "https://doi.org/10.xxxx/xxxxx). Mohon periksa apakah artikel ini "
                                 "memiliki DOI resmi (misalnya melalui crossref.org atau situs jurnal "
                                 "terkait) dan gunakan format tersebut, bukan tautan biasa."),
+                    "message_en": ("No DOI is provided; this reference uses a plain URL instead. "
+                                   "Journal articles normally have an official DOI in the format "
+                                   "https://doi.org/10.xxxx/xxxxx. Please check whether this "
+                                   "article has an official DOI (for example via crossref.org or "
+                                   "the journal website) and use that format rather than a plain "
+                                   "link."),
                 })
             else:
                 issues.append({
@@ -1038,25 +1077,35 @@ def validate_reference_format(ref, ref_type, paragraph=None):
                     "message": ("DOI tidak dicantumkan. Referensi ini terdeteksi sebagai artikel "
                                 "jurnal namun belum mencantumkan DOI. Mohon tambahkan DOI dengan "
                                 "format https://doi.org/10.xxxx/xxxxx."),
+                    "message_en": ("No DOI is provided. This reference was detected as a journal "
+                                   "article but does not include a DOI. Please add the DOI in the "
+                                   "format https://doi.org/10.xxxx/xxxxx."),
                 })
         else:
             doi_str = doi_m.group(1)
             trimmed = doi_str.rstrip(".,;)") if doi_m.end(1) == len(ref) else doi_str
             suffix = trimmed.split("/", 1)[1] if "/" in trimmed else ""
-            invalid_reason = None
+            invalid_reason = invalid_reason_en = None
             if len(suffix) < 3:
                 invalid_reason = "tampak tidak lengkap/terpotong"
+                invalid_reason_en = "appears incomplete or truncated"
             elif len(trimmed) > 60:
                 invalid_reason = ("tampak tercampur dengan teks lain (tidak ada spasi pemisah "
                                   "setelah DOI) atau terlalu panjang untuk pola DOI standar")
+                invalid_reason_en = ("appears to run together with other text (no separating space "
+                                     "after the DOI) or is too long for a standard DOI pattern")
             elif not re.match(r"^10\.\d{4,9}/\S+$", trimmed):
                 invalid_reason = "tidak sesuai pola standar 10.xxxx/xxxxx"
+                invalid_reason_en = "does not match the standard 10.xxxx/xxxxx pattern"
             if invalid_reason:
                 issues.append({
                     "code": "doi_invalid",
                     "message": ('DOI yang tercantum ("{}") {}. Mohon periksa kembali dan pastikan '
                                 "DOI ditulis lengkap, benar, dan terpisah dari teks lain.").format(
                                     trimmed, invalid_reason),
+                    "message_en": ('The DOI provided ("{}") {}. Please re-check it and make sure '
+                                   "the DOI is complete, correct, and separated from surrounding "
+                                   "text.").format(trimmed, invalid_reason_en),
                 })
 
     return issues, journal_name
@@ -1400,6 +1449,13 @@ def validate_heading_hierarchy(parts):
                     "dengan format Section, Subsection, dan Sub-subsection pada "
                     "template jurnal yang digunakan.".format(text_raw.strip())
                 ),
+                "message_en": (
+                    "HEADING STRUCTURE: The heading \u201c{}\u201d does not yet follow the "
+                    "Section/Subsection/Sub-subsection structure used in the journal "
+                    "template. Please adjust the numbering and hierarchy of this heading "
+                    "to match the Section, Subsection, and Sub-subsection format of the "
+                    "journal template in use.".format(text_raw.strip())
+                ),
             })
 
     return issues
@@ -1487,6 +1543,12 @@ def validate_conclusion_subsections(parts):
             "terdeteksi pada manuskrip ini: {}. Mohon strukturkan ulang Bab 5 "
             "sesuai format tersebut.".format(required_list, missing_list)
         ),
+        "message_en": (
+            "CHAPTER 5 STRUCTURE (CONCLUSION): According to the journal template, "
+            "Chapter 5 must be divided into the subsections {}. The following "
+            "subsections were not detected in this manuscript: {}. Please "
+            "restructure Chapter 5 accordingly.".format(required_list, missing_list)
+        ),
     })
 
     return issues
@@ -1563,6 +1625,16 @@ def validate_cross_references(paragraphs):
                         "tambahkan kalimat rujukan yang sesuai pada bagian pembahasan "
                         "terkait.".format(et=elem_type, num=matched_num, el=elem_lower)
                     ),
+                    "message_en": (
+                        "CROSS-REFERENCE: {et} {num} is not referred to anywhere in the body "
+                        "text of the article; the only occurrence found is this caption itself. "
+                        "Every {ell} should be introduced by a lead-in sentence in the body text "
+                        "before it is displayed, for example \u201cAs shown in {et} {num}, "
+                        "...\u201d, \u201cFrom {et} {num}, ...\u201d, or \u201c{et} {num} "
+                        "illustrates...\u201d. Please add an appropriate referring sentence in "
+                        "the related discussion section.".format(
+                            et=elem_type, num=matched_num, ell=elem_type.lower())
+                    ),
                 })
             break
 
@@ -1587,6 +1659,8 @@ def screen_document(doc):
         "name": "Judul (maks. {} kata)".format(TITLE_MAX_WORDS),
         "passed": bool(title) and n_title <= TITLE_MAX_WORDS,
         "detail": ('"{}" — {} kata'.format(title, n_title)) if title else "Judul tidak terdeteksi.",
+        "title": title,
+        "n_words": n_title,
     })
 
     # 2) Keywords
@@ -1601,6 +1675,7 @@ def screen_document(doc):
     checks.append({
         "name": "Keywords ({}–{})".format(KEYWORDS_MIN, KEYWORDS_MAX),
         "passed": ok, "detail": detail,
+        "keywords": kws if kw_raw is not None else None,
     })
 
     # 2b) Format Keywords — Capital Each Word (Title Case)
@@ -1637,6 +1712,7 @@ def screen_document(doc):
     checks.append({
         "name": "Abstrak ({}–{} kata)".format(ABSTRACT_MIN, ABSTRACT_MAX),
         "passed": ok, "detail": detail,
+        "word_count": _wc(abstract) if abstract else 0,
     })
 
     # 4) 5 bab utama
@@ -1698,6 +1774,7 @@ def screen_document(doc):
         "passed": ok_count,
         "detail": "{} referensi terdeteksi.".format(n_ref) if n_ref else
                   "Bagian References tidak ditemukan atau kosong.",
+        "n_refs": n_ref,
     })
     checks.append({
         "name": "Jurnal Internasional (min. {:.0f}%)".format(REF_INTL_PCT),
@@ -1707,6 +1784,8 @@ def screen_document(doc):
                   .format(n_intl, n_ref, pct) if n_ref else "Tidak ada referensi untuk dianalisis.",
         "references": ref_rows,
         "pct": round(pct, 1),
+        "n_refs": n_ref,
+        "n_intl": n_intl,
     })
 
     # 6b) Validasi DOI referensi
@@ -1834,6 +1913,7 @@ def screen_document(doc):
         "goodwood_matches": goodwood_matches,
         "goodwood_count": n_goodwood,
         "goodwood_min": GOODWOOD_JOURNAL_MIN,
+        "n_refs": n_ref,
     })
 
     # 7) Jumlah kata total artikel (Abstract s.d. References)

@@ -21,6 +21,7 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from annotator import annotate_docx
+from i18n import LANG_LABELS, normalize_lang
 
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -67,10 +68,17 @@ def init_db():
                 comments INTEGER NOT NULL DEFAULT 0,
                 verdict TEXT,
                 passed INTEGER,
-                total INTEGER
+                total INTEGER,
+                lang TEXT NOT NULL DEFAULT 'id'
             )
             """
         )
+        # Migrasi untuk database lama yang dibuat sebelum fitur dwibahasa.
+        existing = {row["name"] for row in connection.execute(
+            "PRAGMA table_info(screening_history)")}
+        if "lang" not in existing:
+            connection.execute(
+                "ALTER TABLE screening_history ADD COLUMN lang TEXT NOT NULL DEFAULT 'id'")
 
 
 init_db()
@@ -137,13 +145,21 @@ def logout():
 @app.route("/", methods=["GET"])
 @login_required
 def index():
-    return render_template("index.html", result=None, filename=None, version=VERSION)
+    return render_template(
+        "index.html",
+        result=None,
+        filename=None,
+        version=VERSION,
+        lang="id",
+        lang_labels=LANG_LABELS,
+    )
 
 
 @app.route("/screen", methods=["POST"])
 @login_required
 def screen():
     uploaded_file = request.files.get("manuscript")
+    lang = normalize_lang(request.form.get("lang"))
 
     if not uploaded_file or not uploaded_file.filename:
         flash("Silakan pilih file Word (.docx) terlebih dahulu.")
@@ -165,7 +181,7 @@ def screen():
     output_path = os.path.join(EXPORT_DIR, saved_filename)
 
     try:
-        result, n_comments = annotate_docx(upload_path, output_path)
+        result, n_comments = annotate_docx(upload_path, output_path, lang=lang)
     except Exception as exc:
         # Hapus file hasil yang mungkin terbentuk sebagian.
         try:
@@ -190,9 +206,9 @@ def screen():
             """
             INSERT INTO screening_history (
                 created_at, username, original_filename, saved_filename,
-                comments, verdict, passed, total
+                comments, verdict, passed, total, lang
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 created_at,
@@ -203,6 +219,7 @@ def screen():
                 verdict,
                 passed,
                 total,
+                lang,
             ),
         )
 
@@ -213,6 +230,8 @@ def screen():
         download=saved_filename,
         n_comments=n_comments,
         version=VERSION,
+        lang=lang,
+        lang_labels=LANG_LABELS,
     )
 
 
@@ -223,13 +242,15 @@ def history():
         rows = connection.execute(
             """
             SELECT id, created_at, username, original_filename, saved_filename,
-                   comments, verdict, passed, total
+                   comments, verdict, passed, total,
+                   COALESCE(lang, 'id') AS lang
             FROM screening_history
             ORDER BY id DESC
             """
         ).fetchall()
 
-    return render_template("history.html", records=rows, version=VERSION)
+    return render_template(
+        "history.html", records=rows, version=VERSION, lang_labels=LANG_LABELS)
 
 
 @app.route("/download/<path:fname>")
