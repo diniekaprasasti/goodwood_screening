@@ -30,6 +30,34 @@ def normalize_lang(value):
 # Teks comment yang ditulis oleh annotator
 # ---------------------------------------------------------------
 MESSAGES = {
+    "comment.non_article": {
+        "id": ("JENIS DOKUMEN \u2014 BUKAN ARTIKEL: Dokumen ini terdeteksi sebagai {label}, "
+               "bukan artikel jurnal. Dasar deteksi: {signals}. Naskah dalam bentuk ini belum "
+               "sesuai dengan standar dan tata penulisan artikel jurnal, sehingga pemeriksaan "
+               "kriteria artikel tidak dilanjutkan. Mohon tulis ulang naskah mengikuti template "
+               "artikel yang tersedia di situs Goodwood Publishing (struktur: Title, Abstract, Keywords, Introduction, Literature Review & Hypothesis Development, Research Methodology, Result and Discussion, Conclusion, Acknowledgement, Author Contribution, References), "
+               "lalu kirimkan kembali untuk di-screening."),
+        "en": ("DOCUMENT TYPE \u2014 NOT AN ARTICLE: This document was detected as {label} "
+               "rather than a journal article. Basis for detection: {signals}. In its present "
+               "form the manuscript does not meet journal article writing standards, so the "
+               "article criteria check was not continued. Please rewrite the manuscript "
+               "following the article template available on the Goodwood Publishing website "
+               "(structure: Title, Abstract, Keywords, Introduction, Literature Review & Hypothesis Development, Research Methodology, Result and Discussion, Conclusion, Acknowledgement, Author Contribution, References), then resubmit it for screening."),
+    },
+    "comment.non_article_weak": {
+        "id": ("JENIS DOKUMEN \u2014 PERLU DIPASTIKAN: Sebagian ciri dokumen ini menyerupai "
+               "{label}, bukan artikel jurnal. Dasar deteksi: {signals}. Pemeriksaan kriteria "
+               "artikel tetap dijalankan, namun mohon pastikan naskah sudah mengikuti template "
+               "artikel yang tersedia di situs Goodwood Publishing. Bila naskah ini memang "
+               "berasal dari karya tulis akademik, mohon disesuaikan lebih dulu sebelum "
+               "dikirimkan kembali."),
+        "en": ("DOCUMENT TYPE \u2014 PLEASE VERIFY: Some characteristics of this document "
+               "resemble {label} rather than a journal article. Basis for detection: {signals}. "
+               "The article criteria check was still carried out, but please make sure the "
+               "manuscript follows the article template available on the Goodwood Publishing "
+               "website. If this manuscript does originate from academic coursework, please "
+               "adapt it before resubmitting."),
+    },
     "comment.title": {
         "id": ("JUDUL: {detail} Mohon dipersingkat menjadi maksimal {max_words} kata "
                "(termasuk kata sambung)."),
@@ -141,6 +169,18 @@ def t(key, lang="id", **kwargs):
 # ---------------------------------------------------------------
 # Padanan bahasa Inggris untuk nilai ``detail`` yang ikut masuk comment
 # ---------------------------------------------------------------
+def _en_doc_type(check):
+    dt = check.get("doc_type") or {}
+    if dt.get("is_article", True):
+        return "The document was detected as a journal article."
+    return ("The document was detected as {} (confidence: {}), not a journal article. "
+            "Basis for detection: {}. The manuscript needs to be rewritten following the "
+            "journal article template before it can be processed.".format(
+                dt.get("label_en", "a non-article document"),
+                dt.get("confidence_en", "moderate"),
+                "; ".join((dt.get("reasons_en") or [])[:5]) or "overall document structure"))
+
+
 def _en_title(check):
     title = check.get("title") or ""
     if not title:
@@ -228,6 +268,8 @@ def detail_for(base_name, check, lang, **limits):
     if lang != "en":
         return check.get("detail", "")
 
+    if base_name == "Jenis Dokumen":
+        return _en_doc_type(check)
     if base_name == "Judul":
         return _en_title(check)
     if base_name == "Keywords":

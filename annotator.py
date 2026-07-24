@@ -12,6 +12,10 @@ Bahasa comment dapat dipilih saat screening ("id" atau "en") melalui
 parameter ``lang``. Bahasa Indonesia tetap menjadi perilaku bawaan sehingga
 hasil screening lama tetap identik.
 """
+import os
+import tempfile
+import zipfile
+
 from docx import Document
 
 from screener import (
@@ -21,6 +25,7 @@ from screener import (
     DOC_WORDS_MIN,
     GOODWOOD_JOURNAL_MIN,
     KEYWORDS_MAX,
+    NON_ARTICLE_SKIP_DETAIL,
     KEYWORDS_MIN,
     REF_INTL_PCT,
     REF_MIN,
@@ -39,6 +44,71 @@ LIMITS = {
     "doc_min": DOC_WORDS_MIN,
     "doc_max": DOC_WORDS_MAX,
 }
+
+
+def _read_zip_member(zin, item):
+    """
+    Baca satu anggota zip. Mengembalikan (data, utuh).
+
+    Sebagian manuskrip dikirim dalam kondisi arsip .docx-nya cacat \u2014 paling
+    sering gambar hasil konversi dari Google Docs, WPS, atau unduhan yang
+    terputus, yang menyisakan entri dengan CRC tidak cocok. Isi teksnya
+    sendiri biasanya masih utuh, jadi dokumen semacam ini tetap layak
+    di-screening alih-alih ditolak mentah-mentah.
+    """
+    try:
+        return zin.read(item.filename), True
+    except Exception:
+        pass
+    try:
+        with zin.open(item.filename) as fh:
+            # Lewati verifikasi CRC; data mentahnya tetap dipakai apa adanya
+            # supaya dokumen hasil semirip mungkin dengan aslinya.
+            fh._expected_crc = None
+            return fh.read(), False
+    except Exception:
+        # Entri benar-benar tidak terbaca \u2014 tulis kosong agar sisa
+        # dokumen tetap bisa diproses.
+        return b"", False
+
+
+def repair_docx(src_path, dst_path):
+    """Salin ulang arsip .docx sambil melewati entri yang gagal verifikasi.
+
+    Mengembalikan daftar nama entri yang bermasalah.
+    """
+    damaged = []
+    with zipfile.ZipFile(src_path) as zin:
+        items = zin.infolist()
+        with zipfile.ZipFile(dst_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in items:
+                data, intact = _read_zip_member(zin, item)
+                if not intact:
+                    damaged.append(item.filename)
+                zout.writestr(item.filename, data)
+    return damaged
+
+
+def open_document(src_path):
+    """Buka .docx; bila arsipnya cacat, perbaiki dulu lalu buka ulang.
+
+    Mengembalikan (Document, daftar_entri_rusak).
+    """
+    try:
+        return Document(src_path), []
+    except Exception:
+        pass
+
+    handle, tmp_path = tempfile.mkstemp(suffix=".docx")
+    os.close(handle)
+    try:
+        damaged = repair_docx(src_path, tmp_path)
+        return Document(tmp_path), damaged
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
 
 
 def _runs_at(paragraphs, idx):
@@ -63,8 +133,9 @@ def annotate_docx(src_path, out_path, lang="id"):
     """
     lang = normalize_lang(lang)
 
-    doc = Document(src_path)
+    doc, damaged = open_document(src_path)
     result, parts, all_paragraphs = screen_document(doc)
+    result["repaired"] = damaged
     checks = {c["name"].split(" (")[0]: c for c in result["checks"]}
     n_comments = 0
 
@@ -76,6 +147,31 @@ def annotate_docx(src_path, out_path, lang="id"):
 
     def detail(base_name, check):
         return detail_for(base_name, check, lang, **LIMITS)
+
+    # ---------- 1. Jenis dokumen ----------
+    # Dijalankan paling awal. Jika naskah ternyata skripsi/tesis/disertasi/
+    # makalah, penulis perlu menulis ulang mengikuti template artikel lebih
+    # dulu \u2014 memberi puluhan comment format APA pada naskah semacam itu
+    # hanya menghasilkan kebisingan, bukan arahan yang bisa ditindaklanjuti.
+    doc_type = result.get("doc_type") or {}
+    if not doc_type.get("is_article", True):
+        dt_anchor = _runs_at(all_paragraphs, doc_type.get("idx")) or _first_runs(all_paragraphs)
+        if lang == "en":
+            dt_label = doc_type.get("label_en", "a non-article document")
+            dt_signals = "; ".join((doc_type.get("reasons_en") or [])[:5])
+        else:
+            dt_label = doc_type.get("label", "dokumen non-artikel")
+            dt_signals = "; ".join((doc_type.get("reasons") or [])[:5])
+
+        if doc_type.get("confidence") == "tinggi":
+            comment(dt_anchor, t("comment.non_article", lang,
+                                 label=dt_label, signals=dt_signals or "-"))
+            if NON_ARTICLE_SKIP_DETAIL:
+                doc.save(out_path)
+                return result, n_comments
+        else:
+            comment(dt_anchor, t("comment.non_article_weak", lang,
+                                 label=dt_label, signals=dt_signals or "-"))
 
     # ---------- 2. Judul ----------
     c = checks.get("Judul")

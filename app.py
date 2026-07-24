@@ -188,13 +188,25 @@ def screen():
             os.remove(output_path)
         except OSError:
             pass
-        flash(f"Gagal membaca dokumen: {exc}")
+        flash(
+            f"Gagal membaca dokumen: {exc}. "
+            "Coba buka file ini di Microsoft Word lalu simpan ulang melalui "
+            "File \u2192 Save As \u2192 Word Document (.docx), kemudian unggah kembali."
+        )
         return redirect(url_for("index"))
     finally:
         try:
             os.remove(upload_path)
         except OSError:
             pass
+
+    repaired = (result.get("repaired") if isinstance(result, dict) else None) or []
+    if repaired:
+        flash(
+            "Arsip dokumen ini cacat pada {} berkas internal (biasanya gambar) dan sudah "
+            "diperbaiki otomatis agar tetap dapat di-screening. Isi teks manuskrip tidak "
+            "terpengaruh.".format(len(repaired))
+        )
 
     verdict = str(getattr(result, "verdict", ""))
     passed = int(getattr(result, "passed", 0) or 0)

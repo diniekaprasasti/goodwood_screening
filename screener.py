@@ -1641,6 +1641,350 @@ def validate_cross_references(paragraphs):
     return issues
 
 
+
+# ---------------------------------------------------------------
+# Deteksi jenis dokumen — memastikan yang di-screening memang ARTIKEL,
+# bukan skripsi/tesis/disertasi/makalah/laporan.
+#
+# Menjalankan 17 kriteria artikel pada sebuah skripsi hanya menghasilkan
+# puluhan comment yang tidak berguna: penulisnya perlu menulis ulang naskah
+# mengikuti template artikel lebih dulu, bukan memperbaiki format APA satu
+# per satu. Karena itu dokumen non-artikel dideteksi lebih awal dan diberi
+# satu comment pengarah di awal dokumen.
+#
+# Deteksi memakai skor berbobot, bukan satu kata kunci tunggal, supaya
+# artikel yang kebetulan menyebut kata "skripsi" pada sitasi atau pembahasan
+# tidak ikut ter-flag.
+# ---------------------------------------------------------------
+
+# Ambang skor. Lihat detect_document_type() untuk rincian pembobotan.
+NON_ARTICLE_STRONG = 12   # yakin bukan artikel -> comment pengarah, detail dilewati
+NON_ARTICLE_WEAK = 7      # mencurigakan -> comment peringatan, screening tetap penuh
+
+# Jika True, dokumen yang yakin bukan artikel hanya diberi satu comment
+# pengarah tanpa comment detail lainnya. Ubah ke False bila ingin seluruh
+# comment kriteria artikel tetap dimunculkan.
+NON_ARTICLE_SKIP_DETAIL = True
+
+# Penanda jenis dokumen yang ditulis eksplisit, biasanya berdiri sendiri di
+# halaman sampul. Urutan penting: yang lebih spesifik didahulukan.
+DOC_TYPE_MARKERS = [
+    ("Disertasi", [r"^disertasi$", r"^dissertation$"]),
+    ("Tesis", [r"^tesis$", r"^thesis$"]),
+    ("Skripsi", [r"^skripsi$"]),
+    ("Tugas Akhir", [r"^tugas\s+akhir$", r"^final\s+project$"]),
+    ("Proposal Penelitian", [r"^proposal(\s+(skripsi|tesis|disertasi|penelitian))?$"]),
+    ("Karya Tulis Ilmiah", [r"^karya\s+tulis(\s+ilmiah)?$", r"^k\.?t\.?i\.?$"]),
+    ("Proposal PKM", [r"^pkm[\s-]*(ai|gt|p|k|m|t|kc|pi|gfk)?$",
+                      r"^program\s+kreativitas\s+mahasiswa$"]),
+    ("Makalah", [r"^makalah$", r"^paper$(?!\s)"]),
+    ("Esai", [r"^esai$", r"^essay$", r"^esei$"]),
+    ("Modul/Bahan Ajar", [r"^(modul|diktat|bahan\s+ajar|buku\s+ajar|handout)$"]),
+    ("Resensi", [r"^(resensi|ulasan)(\s+buku)?$", r"^book\s+review$"]),
+    ("Buku/Bab Buku", [r"^(bab|chapter)\s+buku$", r"^book\s+chapter$",
+                       r"^naskah\s+buku$"]),
+    ("Laporan", [r"^laporan(\s+(penelitian|akhir|praktik|praktikum|magang|kkn|pkl|kegiatan))?$"]),
+]
+
+# Penanda tugas perkuliahan yang sering muncul di sampul makalah/esai.
+COURSEWORK_PHRASES = [
+    r"^tugas\s+(mata\s+kuliah|kuliah|individu|kelompok|besar)",
+    r"^(ujian|uas|uts)\s+(akhir|tengah)?\s*semester",
+    r"^ujian\s+(akhir|tengah)\s+semester",
+    r"untuk\s+memenuhi\s+tugas",
+    r"^kelompok\s+\d+$",
+    r"^semester\s+(ganjil|genap|[ivx]+|\d+)\b",
+]
+
+# Frasa pengajuan gelar akademik — sangat khas karya tulis akademik, dan
+# praktis tidak pernah muncul pada artikel jurnal.
+DEGREE_PHRASES = [
+    r"diajukan\s+(untuk|guna|sebagai|kepada)",
+    r"sebagai\s+salah\s+satu\s+(syarat|persyaratan)",
+    r"(untuk|guna)\s+mem(peroleh|enuhi)\s+gelar",
+    r"memenuhi\s+sebagian\s+(syarat|persyaratan)",
+    r"gelar\s+(sarjana|magister|doktor)",
+    r"in\s+partial\s+fulfil?lment",
+    r"submitted\s+in\s+partial",
+]
+
+# Halaman preliminer khas karya tulis akademik.
+FRONT_MATTER_PAGES = [
+    r"^(lembar|halaman)\s+(pengesahan|persetujuan|pernyataan)",
+    r"^pernyataan\s+(keaslian|orisinalitas|bebas\s+plagia)",
+    r"^kata\s+pengantar$",
+    r"^daftar\s+isi$",
+    r"^daftar\s+(tabel|gambar|lampiran|singkatan|istilah|simbol)$",
+    r"^(motto|moto)(\s+dan\s+persembahan)?$",
+    r"^(halaman\s+)?persembahan$",
+    r"^riwayat\s+hidup$",
+    r"^ucapan\s+terima\s+kasih$",
+    r"^abstraksi$",
+]
+
+# Identitas akademik pada sampul.
+ACADEMIC_IDENTITY = [
+    r"\bn\.?i\.?m\.?\s*[:.]?\s*\d",
+    r"\bn\.?p\.?m\.?\s*[:.]?\s*\d",
+    r"\bnrp\s*[:.]?\s*\d",
+    r"dosen\s+(pembimbing|pengampu|penguji)",
+    r"pembimbing\s+(i{1,3}|utama|pendamping)\b",
+    r"^program\s+studi\b",
+    r"^(fakultas|jurusan)\b",
+    r"^mata\s+kuliah\b",
+    r"disusun\s+oleh",
+    r"^(oleh)\s*[:.]?$",
+]
+
+# Penamaan bab bergaya karya tulis Indonesia.
+ID_CHAPTER_STYLE = [
+    r"^tinjauan\s+pustaka",
+    r"^(metode|metodologi)\s+penelitian",
+    r"^hasil\s+dan\s+pembahasan",
+    r"^kesimpulan\s+dan\s+saran",
+    r"^penutup$",
+    r"^landasan\s+teori",
+    r"^kerangka\s+(teori|pemikiran|berpikir)",
+]
+
+BAB_HEADING_RE = re.compile(r"^bab\s+([ivxlc]+|\d+)\b", re.I)
+
+DOC_TYPE_LABELS_EN = {
+    "Artikel": "journal article",
+    "Skripsi": "an undergraduate thesis (skripsi)",
+    "Tesis": "a master's thesis",
+    "Disertasi": "a doctoral dissertation",
+    "Tugas Akhir": "a final project report",
+    "Proposal Penelitian": "a research proposal",
+    "Karya Tulis Ilmiah": "a student scientific paper (karya tulis ilmiah)",
+    "Proposal PKM": "a PKM student creativity programme proposal",
+    "Makalah": "a term paper (makalah)",
+    "Esai": "an essay",
+    "Modul/Bahan Ajar": "a teaching module or course handout",
+    "Resensi": "a book review",
+    "Buku/Bab Buku": "a book or book chapter",
+    "Laporan": "a report",
+    "Skripsi/Tesis": "an undergraduate or master's thesis",
+    "Disertasi/Tesis": "a doctoral dissertation or master's thesis",
+    "Makalah/Laporan": "a term paper or report",
+    "Dokumen non-artikel": "a non-article document",
+}
+
+
+def _scan_front(paragraphs, limit=70):
+    """Ambil baris teks non-kosong di bagian depan dokumen.
+
+    Halaman sampul karya tulis lazim menaruh beberapa baris dalam SATU
+    paragraf yang dipisah line break (Shift+Enter), mis. paragraf berisi
+    "MAKALAH\nKEJAHATAN BIDANG EKONOMI". Karena itu isi paragraf dipecah
+    per baris lebih dulu; tanpa ini penanda seperti "MAKALAH" tidak akan
+    pernah cocok dengan pola ^makalah$.
+    """
+    out = []
+    for p in paragraphs:
+        if not p.text.strip():
+            continue
+        for line in p.text.splitlines():
+            line = line.strip()
+            if line:
+                out.append(line)
+        if len(out) >= limit:
+            break
+    return out[:limit]
+
+
+def detect_document_type(paragraphs, parts, total_words=0):
+    """
+    Menaksir apakah dokumen ini artikel jurnal atau karya tulis lain.
+
+    Mengembalikan dict:
+      {"is_article": bool,
+       "label": <"Artikel" | "Skripsi" | "Tesis" | ...>,
+       "score": <skor akhir>,
+       "confidence": "tinggi" | "sedang" | "rendah",
+       "signals": [<penjelasan singkat tiap sinyal yang cocok>],
+       "idx": <indeks paragraf untuk anchor comment>}
+
+    Skor positif menandakan karya tulis non-artikel, skor negatif ditarik
+    oleh ciri khas artikel jurnal. Hasil bersifat estimasi otomatis.
+    """
+    front = _scan_front(paragraphs)
+    front_lower = [t.lower() for t in front]
+    score = 0
+    signals = []
+    signals_en = []
+    reasons = []
+    reasons_en = []
+    label = None
+    anchor_idx = parts.get("title_idx") or 0
+
+    def sig(id_text, en_text):
+        signals.append(id_text)
+        signals_en.append(en_text)
+        # Sinyal berawalan "(-)" adalah ciri artikel yang justru menurunkan
+        # skor. Berguna untuk telusur, tapi menyesatkan bila ikut disebut
+        # sebagai "dasar deteksi" pada comment ke penulis.
+        if not id_text.startswith("(-)"):
+            reasons.append(id_text)
+            reasons_en.append(en_text)
+
+    # 1) Penanda jenis dokumen eksplisit (bobot terbesar).
+    for name, pats in DOC_TYPE_MARKERS:
+        for t in front_lower:
+            if _match_any(t.strip(" .:-"), pats):
+                if label is None:
+                    label = name
+                # Bobot 7 (bukan 6) supaya penanda sampul yang berdiri sendiri
+                # \u2014 mis. dokumen berjudul "RESENSI BUKU" tanpa BAB, tanpa
+                # halaman preliminer \u2014 tetap melewati ambang NON_ARTICLE_WEAK
+                # dan mendapat comment peringatan, bukan lolos diam-diam.
+                score += 7
+                sig("penanda \u201c{}\u201d pada halaman depan".format(name),
+                    "an explicit \u201c{}\u201d marker on the front page".format(name))
+                break
+        if label is not None:
+            break
+
+    # 2) Frasa pengajuan gelar akademik.
+    joined_front = " \n ".join(front_lower)
+    hit_degree = [p for p in DEGREE_PHRASES if re.search(p, joined_front)]
+    if hit_degree:
+        score += 5
+        sig("frasa pengajuan gelar akademik pada halaman depan",
+            "academic degree submission phrasing on the front page")
+
+    # 2b) Frasa tugas perkuliahan (khas makalah, esai, dan KTI mahasiswa).
+    if any(re.search(pat, t.strip()) for t in front_lower for pat in COURSEWORK_PHRASES):
+        score += 5
+        sig("frasa penugasan mata kuliah pada halaman depan",
+            "coursework assignment phrasing on the front page")
+
+    # 3) Struktur "BAB I / BAB II / ..." pada heading.
+    bab_count = sum(1 for h in parts.get("heading_raw", []) if BAB_HEADING_RE.match(h.strip()))
+    if bab_count == 0:
+        bab_count = sum(1 for t in front if BAB_HEADING_RE.match(t))
+    if bab_count >= 3:
+        score += 6
+        sig("{} heading berformat \u201cBAB ...\u201d".format(bab_count),
+            "{} headings in \u201cBAB ...\u201d format".format(bab_count))
+    elif bab_count > 0:
+        score += 3
+        sig("{} heading berformat \u201cBAB ...\u201d".format(bab_count),
+            "{} headings in \u201cBAB ...\u201d format".format(bab_count))
+
+    # 4) Halaman preliminer khas karya tulis (Daftar Isi, Kata Pengantar, dst).
+    fm_hits = set()
+    for t in front_lower:
+        for pat in FRONT_MATTER_PAGES:
+            if re.match(pat, t.strip(" .:-")):
+                fm_hits.add(pat)
+    if fm_hits:
+        add = min(len(fm_hits) * 2, 8)
+        score += add
+        sig("{} halaman preliminer khas karya tulis "
+            "(mis. Daftar Isi, Kata Pengantar)".format(len(fm_hits)),
+            "{} preliminary pages typical of a thesis "
+            "(e.g. table of contents, preface)".format(len(fm_hits)))
+
+    # 5) Identitas akademik pada sampul (NIM, Dosen Pembimbing, dst).
+    id_hits = set()
+    for t in front_lower:
+        for pat in ACADEMIC_IDENTITY:
+            if re.search(pat, t.strip()):
+                id_hits.add(pat)
+    if id_hits:
+        add = min(len(id_hits) * 2, 6)
+        score += add
+        sig("identitas akademik pada halaman depan "
+            "(mis. NIM, Program Studi, Dosen Pembimbing)",
+            "academic identity details on the front page "
+            "(e.g. student ID, study programme, supervisor)")
+
+    # 6) Penamaan bab bergaya karya tulis Indonesia.
+    heads_lower = [h.lower().strip() for h in parts.get("headings", [])]
+    ch_hits = set()
+    for h in heads_lower:
+        h2 = re.sub(r"^bab\s+([ivxlc]+|\d+)[\s.:-]*", "", h, flags=re.I)
+        for pat in ID_CHAPTER_STYLE:
+            if re.match(pat, h2):
+                ch_hits.add(pat)
+    if ch_hits:
+        add = min(len(ch_hits) * 2, 6)
+        score += add
+        sig("penamaan bab bergaya karya tulis "
+            "(mis. Tinjauan Pustaka, Hasil dan Pembahasan)",
+            "chapter naming typical of a thesis "
+            "(e.g. Tinjauan Pustaka, Hasil dan Pembahasan)")
+
+    # 7) Panjang naskah jauh di atas artikel jurnal.
+    if total_words >= 25000:
+        score += 5
+        sig("panjang naskah {:,} kata".format(total_words).replace(",", "."),
+            "manuscript length of {:,} words".format(total_words))
+    elif total_words >= 15000:
+        score += 3
+        sig("panjang naskah {:,} kata".format(total_words).replace(",", "."),
+            "manuscript length of {:,} words".format(total_words))
+
+    # 8) Ciri khas artikel jurnal — menarik skor turun.
+    if parts.get("abstract") and parts.get("keywords_raw") is not None:
+        score -= 4
+        sig("(-) Abstract dan Keywords lengkap seperti artikel",
+            "(-) complete Abstract and Keywords as in an article")
+    en_struct = sum(1 for h in heads_lower if _match_any(h, [
+        r"^introduction", r"^literature\s+review", r"^research\s+methodolog",
+        r"^result\s+and\s+discussion", r"^hypothes[ei]s\s+development"]))
+    if en_struct >= 2:
+        score -= min(en_struct * 2, 4)
+        sig("(-) {} bab berformat template artikel".format(en_struct),
+            "(-) {} chapters matching the article template".format(en_struct))
+    if DOC_WORDS_MIN <= total_words <= DOC_WORDS_MAX:
+        score -= 2
+        sig("(-) panjang naskah sesuai rentang artikel",
+            "(-) manuscript length within the article range")
+
+    # --- Kesimpulan ---
+    if score >= NON_ARTICLE_STRONG:
+        confidence = "tinggi"
+        is_article = False
+    elif score >= NON_ARTICLE_WEAK:
+        confidence = "sedang"
+        is_article = False
+    else:
+        confidence = "rendah"
+        is_article = True
+
+    if is_article:
+        label = "Artikel"
+    elif label is None:
+        # Tidak ada penanda eksplisit — taksir dari struktur dan panjang naskah.
+        if total_words >= 25000:
+            label = "Disertasi/Tesis"
+        elif total_words >= 12000 or bab_count >= 4:
+            label = "Skripsi/Tesis"
+        elif bab_count > 0 or ch_hits:
+            label = "Makalah/Laporan"
+        else:
+            label = "Dokumen non-artikel"
+
+    return {
+        "is_article": is_article,
+        "label": label,
+        "label_en": DOC_TYPE_LABELS_EN.get(label, label),
+        "score": score,
+        "confidence": confidence,
+        "confidence_en": {"tinggi": "high", "sedang": "moderate",
+                          "rendah": "low"}.get(confidence, confidence),
+        "signals": signals,
+        "signals_en": signals_en,
+        "reasons": reasons,
+        "reasons_en": reasons_en,
+        "bab_count": bab_count,
+        "total_words": total_words,
+        "idx": anchor_idx,
+    }
+
+
 def screen_docx(path):
     doc = Document(path)
     result, _, _ = screen_document(doc)
@@ -1651,6 +1995,25 @@ def screen_document(doc):
     all_paragraphs, in_table_flags = get_all_paragraphs(doc)
     parts = extract_parts(all_paragraphs, in_table_flags)
     checks = []
+
+    # 0) Jenis dokumen \u2014 pastikan yang di-screening memang artikel jurnal,
+    # bukan skripsi/tesis/disertasi/makalah/laporan.
+    raw_words = sum(_wc(p.text) for p in all_paragraphs if p.text.strip())
+    doc_type = detect_document_type(all_paragraphs, parts, raw_words)
+    if doc_type["is_article"]:
+        dt_detail = "Dokumen terdeteksi sebagai artikel jurnal."
+    else:
+        dt_detail = ("Dokumen terdeteksi sebagai {} (keyakinan {}), bukan artikel jurnal. "
+                     "Dasar deteksi: {}. Naskah perlu ditulis ulang mengikuti template "
+                     "artikel jurnal sebelum dapat diproses.").format(
+                         doc_type["label"], doc_type["confidence"],
+                         "; ".join(doc_type["reasons"][:5]) or "pola struktur dokumen")
+    checks.append({
+        "name": "Jenis Dokumen",
+        "passed": doc_type["is_article"],
+        "detail": dt_detail,
+        "doc_type": doc_type,
+    })
 
     # 1) Title
     title = parts["title"] or ""
@@ -1978,11 +2341,18 @@ def screen_document(doc):
     })
 
     passed = sum(1 for c in checks if c["passed"])
+    if not doc_type["is_article"] and doc_type["confidence"] == "tinggi":
+        verdict = "BUKAN ARTIKEL"
+    elif passed == len(checks):
+        verdict = "LOLOS SCREENING"
+    else:
+        verdict = "PERLU REVISI"
     result = {
         "checks": checks,
         "passed": passed,
         "total": len(checks),
-        "verdict": "LOLOS SCREENING" if passed == len(checks) else "PERLU REVISI",
+        "verdict": verdict,
         "title": title,
+        "doc_type": doc_type,
     }
     return result, parts, all_paragraphs
